@@ -144,28 +144,23 @@
                     let win = 0;
                     let loss = 0;
 
-                    // วนอ่านตั้งแต่แถวที่ 2 เป็นต้นไป (ข้ามหัวตาราง)
                     for (let i = 1; i < rows.length; i++) {
                         const row = rows[i];
-                        if (!row || row.length === 0) continue;
+                        if (!row || row.length < 2) continue;
 
-                        // คอลัมน์ A (index 0) = เสร็จ
-                        const isDone = row[0] ? String(row[0]).trim().toUpperCase() : '';
+                        const colA = String(row[0] || '').trim().toUpperCase();
+                        const colB = String(row[1] || '').trim().toUpperCase();
                         
-                        // คอลัมน์ B (index 1) = แตก
-                        const isFailed = row[1] ? String(row[1]).trim().toUpperCase() : '';
-                        
-                        // คอลัมน์ D (index 3) = ชื่อ Tiktok
-                        const tiktokName = row[3] ? String(row[3]).trim() : '';
+                        // ตรวจเช็กว่ามีการลงข้อมูลในแถวนั้นหรือไม่ (ดูจากคอลัมน์ C, D, E)
+                        const hasData = row.slice(2).some(cell => String(cell).trim() !== '');
 
-                        // ถ้านับเฉพาะแถวที่มีชื่อ Tiktok กรอกอยู่
-                        if (tiktokName !== '' && tiktokName.toUpperCase() !== 'FALSE' && tiktokName.toUpperCase() !== 'TRUE') {
+                        if (hasData) {
                             total++;
 
-                            if (isDone === 'TRUE' || isDone === '1') {
+                            if (colA === 'TRUE' || colA === '1') {
                                 win++;
                             }
-                            if (isFailed === 'TRUE' || isFailed === '1') {
+                            if (colB === 'TRUE' || colB === '1') {
                                 loss++;
                             }
                         }
@@ -178,9 +173,6 @@
                     document.getElementById('win').innerText = win;
                     document.getElementById('loss').innerText = loss;
                     document.getElementById('winrate').innerText = winrate + '%';
-                },
-                error: function(err) {
-                    console.error("Fetch Error:", err);
                 }
             });
         }

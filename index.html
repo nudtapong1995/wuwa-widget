@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Wuwa Queue Stats</title>
-    <!-- ไลบรารีสำหรับแกะข้อมูล CSV จาก Google Sheets อย่างแม่นยำ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap');
@@ -129,7 +128,6 @@
     </div>
 
     <script>
-        // ลิงก์ CSV จาก Google Sheets
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRK9ZTPBP8jDAnYhxLa58c3r4a1lmKUAI7PHzfJWIr1q72BDAqCA4i7YUxwqD24FAgfEEJpKdNmqe9F/pub?gid=747416276&single=true&output=csv';
 
         function fetchStats() {
@@ -146,35 +144,36 @@
                     let win = 0;
                     let loss = 0;
 
-                    // ข้ามแถวที่ 1 (หัวตาราง) เริ่มอ่านตั้งแต่แถวที่ 2 เป็นต้นไป
+                    // วนอ่านตั้งแต่แถวที่ 2 เป็นต้นไป (ข้ามหัวตาราง)
                     for (let i = 1; i < rows.length; i++) {
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
 
-                        const colA = row[0] ? String(row[0]).trim().toUpperCase() : '';
-                        const colB = row[1] ? String(row[1]).trim().toUpperCase() : '';
+                        // คอลัมน์ A (index 0) = เสร็จ
+                        const isDone = row[0] ? String(row[0]).trim().toUpperCase() : '';
                         
-                        // ตรวจเช็กช่องชื่อผู้ลงคิว (เช็กคอลัมน์ D หรือ C/E เผื่อมีการย้ายช่อง)
-                        const nameCell = (row[3] || row[2] || row[4] || '').trim();
+                        // คอลัมน์ B (index 1) = แตก
+                        const isFailed = row[1] ? String(row[1]).trim().toUpperCase() : '';
+                        
+                        // คอลัมน์ D (index 3) = ชื่อ Tiktok
+                        const tiktokName = row[3] ? String(row[3]).trim() : '';
 
-                        // หากมีการกรอกชื่อคิวอยู่ในแถวนั้น
-                        if (nameCell !== '' && nameCell.toUpperCase() !== 'FALSE' && nameCell.toUpperCase() !== 'TRUE') {
+                        // ถ้านับเฉพาะแถวที่มีชื่อ Tiktok กรอกอยู่
+                        if (tiktokName !== '' && tiktokName.toUpperCase() !== 'FALSE' && tiktokName.toUpperCase() !== 'TRUE') {
                             total++;
 
-                            if (colA === 'TRUE' || colA === '1' || colA === 'YES') {
+                            if (isDone === 'TRUE' || isDone === '1') {
                                 win++;
                             }
-                            if (colB === 'TRUE' || colB === '1' || colB === 'YES') {
+                            if (isFailed === 'TRUE' || isFailed === '1') {
                                 loss++;
                             }
                         }
                     }
 
-                    // คำนวณ Win Rate จากคิวที่เล่นจบแล้ว (ผ่าน + แตก)
                     const played = win + loss;
                     const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
 
-                    // อัปเดตข้อมูลขึ้นหน้าจอ
                     document.getElementById('total').innerText = total;
                     document.getElementById('win').innerText = win;
                     document.getElementById('loss').innerText = loss;
@@ -186,7 +185,6 @@
             });
         }
 
-        // เรียกทำงานทันทีและตั้งเวลาดึงใหม่ทุกๆ 2 วินาที
         fetchStats();
         setInterval(fetchStats, 2000);
     </script>

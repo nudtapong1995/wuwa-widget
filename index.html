@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Wuwa Queue Stats</title>
+    <!-- ไลบรารี PapaParse สำหรับแปลงข้อมูล CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap');
@@ -128,9 +129,11 @@
     </div>
 
     <script>
+        // ลิงก์ CSV ล่าสุดของคุณ
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRK9ZTPBP8jDAnYhxLa58c3r4a1lmKUAI7PHzfJWIr1q72BDAqCA4i7YUxwqD24FAgfEEJpKdNmqe9F/pub?gid=8067900&single=true&output=csv';
 
         function fetchStats() {
+            // ป้องกันปัญหา Cache โดยการต่อเวลา Timestamp
             const fetchUrl = SHEET_CSV_URL + '&t=' + new Date().getTime();
 
             Papa.parse(fetchUrl, {
@@ -144,17 +147,21 @@
                     let win = 0;
                     let loss = 0;
 
+                    // วนลูปอ่านตั้งแต่แถวที่ 2 (ข้ามหัวตาราง)
                     for (let i = 1; i < rows.length; i++) {
                         const row = rows[i];
-                        if (!row || row.length < 2) continue;
+                        if (!row || row.length === 0) continue;
 
                         const colA = String(row[0] || '').trim().toUpperCase();
                         const colB = String(row[1] || '').trim().toUpperCase();
                         
-                        // ตรวจเช็กว่ามีการลงข้อมูลในแถวนั้นหรือไม่ (ดูจากคอลัมน์ C, D, E)
-                        const hasData = row.slice(2).some(cell => String(cell).trim() !== '');
+                        // เช็กว่ามีการใส่ข้อมูลคนลงคิวในคอลัมน์ C, D หรืออื่นๆ หรือไม่
+                        const hasContent = row.slice(2).some(cell => {
+                            const val = String(cell).trim().toUpperCase();
+                            return val !== '' && val !== 'FALSE' && val !== 'TRUE';
+                        });
 
-                        if (hasData) {
+                        if (hasContent) {
                             total++;
 
                             if (colA === 'TRUE' || colA === '1') {
@@ -177,6 +184,7 @@
             });
         }
 
+        // ดึงข้อมูลครั้งแรกทันที และอัปเดตซ้ำทุกๆ 2 วินาที
         fetchStats();
         setInterval(fetchStats, 2000);
     </script>

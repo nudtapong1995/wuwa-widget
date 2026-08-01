@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Wuwa Queue Stats</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap');
+
+        body {
+            margin: 0;
+            padding: 10px;
+            background-color: transparent; /* พื้นหลังใส */
+            font-family: 'Kanit', sans-serif;
+            color: #ffffff;
+        }
+
+        .card {
+            background: rgba(15, 23, 42, 0.85); /* สีเข้มโปร่งแสงสไตล์เกมเมอร์ */
+            border: 2px solid rgba(56, 189, 248, 0.5);
+            border-radius: 16px;
+            padding: 15px 20px;
+            width: 320px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+        }
+
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 800;
+            color: #38bdf8;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px 5px;
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .value-total { color: #f1f5f9; }
+        .value-win { color: #4ade80; }
+        .value-loss { color: #f87171; }
+
+        .winrate-box {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.2));
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 10px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .winrate-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .winrate-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: #38bdf8;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="title">📊 WUWA QUEUE STATS</div>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-label">คิวทั้งหมด</div>
+                <div class="stat-value value-total" id="total">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">ผ่านแล้ว</div>
+                <div class="stat-value value-win" id="win">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">แตก</div>
+                <div class="stat-value value-loss" id="loss">0</div>
+            </div>
+        </div>
+
+        <div class="winrate-box">
+            <span class="winrate-label">🔥 WIN RATE</span>
+            <span class="winrate-value" id="winrate">0%</span>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ นำ URL (.csv) ที่ได้จาก Publish to web มาวางในเครื่องหมายอัญประกาศด้านล่างนี้:
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRK9ZTPBP8jDAnYhxLa58c3r4a1lmKUAI7PHzfJWIr1q72BDAqCA4i7YUxwqD24FAgfEEJpKdNmqe9F/pub?gid=747416276&single=true&output=csv';
+
+        async function fetchStats() {
+            if (SHEET_CSV_URL === 'วาง_URL_CSV_ตรงนี้') return;
+
+            try {
+                // เพิ่ม timestamp เพื่อบังคับไม่ให้ติด Cache
+                const response = await fetch(SHEET_CSV_URL + '&t=' + new Date().getTime());
+                const data = await response.text();
+                
+                const rows = data.split('\n').map(row => row.split(','));
+
+                let total = 0;
+                let win = 0;
+                let loss = 0;
+
+                // วนลูปอ่านข้อมูลคอลัมน์ A (เสร็จ), B (แตก), D (ชื่อ Tiktok) ตั้งแต่แถวที่ 2 เป็นต้นไป
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length < 4) continue;
+
+                    const isDone = row[0] ? row[0].trim().toUpperCase() : '';
+                    const isFailed = row[1] ? row[1].trim().toUpperCase() : '';
+                    const tiktokName = row[3] ? row[3].trim() : '';
+
+                    if (tiktokName !== '') {
+                        total++;
+                    }
+
+                    if (isDone === 'TRUE') {
+                        win++;
+                    }
+
+                    if (isFailed === 'TRUE') {
+                        loss++;
+                    }
+                }
+
+                // คำนวณ Win Rate จากคิวที่จบแล้ว (เสร็จ + แตก)
+                const played = win + loss;
+                const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
+
+                // อัปเดตขึ้นหน้าจอ
+                document.getElementById('total').innerText = total;
+                document.getElementById('win').innerText = win;
+                document.getElementById('loss').innerText = loss;
+                document.getElementById('winrate').innerText = winrate + '%';
+
+            } catch (error) {
+                console.error("Fetch Error:", error);
+            }
+        }
+
+        // ดึงข้อมูลครั้งแรก และตั้งเวลาดึงข้อมูลใหม่ทุกๆ 2,000 มิลลิวินาที (2 วินาที)
+        fetchStats();
+        setInterval(fetchStats, 2000);
+    </script>
+</body>
+</html>

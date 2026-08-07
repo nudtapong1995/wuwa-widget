@@ -1,60 +1,194 @@
-<script>
-    // ลิงก์ CSV อัปเดตล่าสุด
-    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTgIft7bx4yf5tesksvVJWDPA6oB7CtSg6QH0_XOqbQuRliqOArzTQs7Z1D1nOW2V6Qy868OA9Q_dnk/pub?output=csv';
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wuwa Live Overlay</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@600;800;900&display=swap');
 
-    function fetchStats() {
-        const fetchUrl = SHEET_CSV_URL + '&t=' + new Date().getTime();
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-        Papa.parse(fetchUrl, {
-            download: true,
-            skipEmptyLines: 'greedy', // ข้ามแถวที่เป็นช่องว่างทั้งหมด
-            complete: function(results) {
-                const rows = results.data;
-                if (!rows || rows.length < 2) return;
+        body {
+            background-color: transparent;
+            font-family: 'Kanit', sans-serif;
+            color: #ffffff;
+            padding: 6px;
+        }
 
-                let total = 0;
-                let win = 0;
-                let loss = 0;
+        /* ปรับขนาดการ์ดให้กะทัดรัด (230px) เหมาะกับหน้าจอมือถือแนวตั้ง */
+        .card {
+            background: rgba(15, 23, 42, 0.92);
+            border: 2px solid #38bdf8;
+            border-radius: 12px;
+            padding: 10px 12px;
+            width: 230px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(6px);
+        }
 
-                // วนลูปอ่านตั้งแต่แถวที่ 2 (ข้ามหัวตาราง)
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    if (!row || row.length === 0) continue;
+        .title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 800;
+            color: #38bdf8;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+        }
 
-                    // แปลงค่าเป็น String และตัดช่องว่างออก ป้องกันปัญหาฟอร์แมตไม่ตรง
-                    const colA = String(row[0] ?? '').trim().toUpperCase(); // ผ่าน (Win)
-                    const colB = String(row[1] ?? '').trim().toUpperCase(); // แตก (Loss)
-                    const colD = String(row[3] ?? '').trim();               // คิว
-                    const colE = String(row[4] ?? '').trim();               // ชื่อ TikTok
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #4ade80;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #4ade80;
+        }
 
-                    // เช็กว่าบรรทัดนี้มีการลงคิวไว้จริงหรือไม่ (มีคิว D หรือ ชื่อ TikTok E)
-                    const hasQueue = colD !== '' || colE !== '';
+        /* ปรับเลย์เอาต์ให้เน้นตัวเลขใหญ่ อ่านง่ายเวลามองผ่านไลฟ์ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
 
-                    if (hasQueue) {
-                        total++;
+        .stat-box {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 6px 2px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
 
-                        // ตรวจสอบสถานะ ผ่าน (Win)
-                        if (colA === 'TRUE' || colA === '1' || colA === 'YES') {
-                            win++;
-                        }
-                        // ตรวจสอบสถานะ แตก (Loss)
-                        if (colB === 'TRUE' || colB === '1' || colB === 'YES') {
-                            loss++;
+        .stat-label {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 22px; /* ตัวอักษรใหญ่เน้นชัดเจน */
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .value-total { color: #f1f5f9; }
+        .value-win { color: #4ade80; }
+        .value-loss { color: #f87171; }
+
+        .winrate-box {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(99, 102, 241, 0.3));
+            border: 1.5px solid #38bdf8;
+            border-radius: 8px;
+            padding: 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .winrate-label {
+            font-size: 13px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .winrate-value {
+            font-size: 24px; /* เน้นอัตราชนะให้เด่นที่สุด */
+            font-weight: 900;
+            color: #38bdf8;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="title"><span class="status-dot"></span> WUWA QUEUE STATS</div>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-label">คิวรวม</div>
+                <div class="stat-value value-total" id="total">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">ผ่าน</div>
+                <div class="stat-value value-win" id="win">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">แตก</div>
+                <div class="stat-value value-loss" id="loss">0</div>
+            </div>
+        </div>
+
+        <div class="winrate-box">
+            <span class="winrate-label">🔥 WIN RATE</span>
+            <span class="winrate-value" id="winrate">0%</span>
+        </div>
+    </div>
+
+    <script>
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTgIft7bx4yf5tesksvVJWDPA6oB7CtSg6QH0_XOqbQuRliqOArzTQs7Z1D1nOW2V6Qy868OA9Q_dnk/pub?output=csv';
+
+        function fetchStats() {
+            const fetchUrl = SHEET_CSV_URL + '&t=' + new Date().getTime();
+
+            Papa.parse(fetchUrl, {
+                download: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const rows = results.data;
+                    if (!rows || rows.length < 2) return;
+
+                    let win = 0;
+                    let loss = 0;
+                    let total = 0;
+
+                    // วนลูปเช็กตั้งแต่แถวที่ 2
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || row.length === 0) continue;
+
+                        const colA = String(row[0] || '').trim().toUpperCase(); // ช่องผ่าน (Win)
+                        const colB = String(row[1] || '').trim().toUpperCase(); // ช่องแตก (Loss)
+                        const colD = String(row[3] || '').trim();               // เลขคิว
+
+                        // ถ้านับแถวที่มีการลงเลขคิว
+                        if (colD !== '') {
+                            total++;
+
+                            if (colA === 'TRUE' || colA === '1') {
+                                win++;
+                            } else if (colB === 'TRUE' || colB === '1') {
+                                loss++;
+                            }
                         }
                     }
+
+                    const played = win + loss;
+                    const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
+
+                    // อัปเดต UI
+                    document.getElementById('total').innerText = total;
+                    document.getElementById('win').innerText = win;
+                    document.getElementById('loss').innerText = loss;
+                    document.getElementById('winrate').innerText = winrate + '%';
                 }
+            });
+        }
 
-                const played = win + loss;
-                const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
-
-                document.getElementById('total').innerText = total;
-                document.getElementById('win').innerText = win;
-                document.getElementById('loss').innerText = loss;
-                document.getElementById('winrate').innerText = winrate + '%';
-            }
-        });
-    }
-
-    fetchStats();
-    setInterval(fetchStats, 2000);
-</script>
+        fetchStats();
+        setInterval(fetchStats, 2000);
+    </script>
+</body>
+</html>

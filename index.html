@@ -1,191 +1,60 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <title>Wuwa Queue Stats</title>
-    <!-- ไลบรารี PapaParse สำหรับแปลงข้อมูล CSV -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap');
+<script>
+    // ลิงก์ CSV อัปเดตล่าสุด
+    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTgIft7bx4yf5tesksvVJWDPA6oB7CtSg6QH0_XOqbQuRliqOArzTQs7Z1D1nOW2V6Qy868OA9Q_dnk/pub?output=csv';
 
-        body {
-            margin: 0;
-            padding: 10px;
-            background-color: transparent;
-            font-family: 'Kanit', sans-serif;
-            color: #ffffff;
-        }
+    function fetchStats() {
+        const fetchUrl = SHEET_CSV_URL + '&t=' + new Date().getTime();
 
-        .card {
-            background: rgba(15, 23, 42, 0.88);
-            border: 2px solid rgba(56, 189, 248, 0.6);
-            border-radius: 16px;
-            padding: 16px 20px;
-            width: 320px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-        }
+        Papa.parse(fetchUrl, {
+            download: true,
+            skipEmptyLines: 'greedy', // ข้ามแถวที่เป็นช่องว่างทั้งหมด
+            complete: function(results) {
+                const rows = results.data;
+                if (!rows || rows.length < 2) return;
 
-        .title {
-            text-align: center;
-            font-size: 18px;
-            font-weight: 800;
-            color: #38bdf8;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
+                let total = 0;
+                let win = 0;
+                let loss = 0;
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #4ade80;
-            border-radius: 50%;
-            box-shadow: 0 0 6px #4ade80;
-        }
+                // วนลูปอ่านตั้งแต่แถวที่ 2 (ข้ามหัวตาราง)
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
 
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            text-align: center;
-            margin-bottom: 12px;
-        }
+                    // แปลงค่าเป็น String และตัดช่องว่างออก ป้องกันปัญหาฟอร์แมตไม่ตรง
+                    const colA = String(row[0] ?? '').trim().toUpperCase(); // ผ่าน (Win)
+                    const colB = String(row[1] ?? '').trim().toUpperCase(); // แตก (Loss)
+                    const colD = String(row[3] ?? '').trim();               // คิว
+                    const colE = String(row[4] ?? '').trim();               // ชื่อ TikTok
 
-        .stat-box {
-            background: rgba(255, 255, 255, 0.06);
-            padding: 10px 5px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+                    // เช็กว่าบรรทัดนี้มีการลงคิวไว้จริงหรือไม่ (มีคิว D หรือ ชื่อ TikTok E)
+                    const hasQueue = colD !== '' || colE !== '';
 
-        .stat-label {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-bottom: 4px;
-        }
+                    if (hasQueue) {
+                        total++;
 
-        .stat-value {
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        .value-total { color: #f1f5f9; }
-        .value-win { color: #4ade80; }
-        .value-loss { color: #f87171; }
-
-        .winrate-box {
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(99, 102, 241, 0.25));
-            border: 1px solid rgba(56, 189, 248, 0.5);
-            border-radius: 10px;
-            padding: 10px 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .winrate-label {
-            font-size: 14px;
-            font-weight: 700;
-            color: #e2e8f0;
-        }
-
-        .winrate-value {
-            font-size: 24px;
-            font-weight: 800;
-            color: #38bdf8;
-            text-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
-        }
-    </style>
-</head>
-<body>
-
-    <div class="card">
-        <div class="title"><span class="status-dot"></span> WUWA QUEUE STATS</div>
-        
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="stat-label">คิวทั้งหมด</div>
-                <div class="stat-value value-total" id="total">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">ผ่านแล้ว</div>
-                <div class="stat-value value-win" id="win">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">แตก</div>
-                <div class="stat-value value-loss" id="loss">0</div>
-            </div>
-        </div>
-
-        <div class="winrate-box">
-            <span class="winrate-label">🔥 WIN RATE</span>
-            <span class="winrate-value" id="winrate">0%</span>
-        </div>
-    </div>
-
-    <script>
-        // ลิงก์ CSV อัปเดตล่าสุด
-        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTgIft7bx4yf5tesksvVJWDPA6oB7CtSg6QH0_XOqbQuRliqOArzTQs7Z1D1nOW2V6Qy868OA9Q_dnk/pub?output=csv';
-
-        function fetchStats() {
-            // ป้องกันปัญหา Cache โดยการต่อเวลา Timestamp
-            const fetchUrl = SHEET_CSV_URL + '&t=' + new Date().getTime();
-
-            Papa.parse(fetchUrl, {
-                download: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    const rows = results.data;
-                    if (!rows || rows.length < 2) return;
-
-                    let total = 0;
-                    let win = 0;
-                    let loss = 0;
-
-                    // วนลูปอ่านตั้งแต่แถวที่ 2 (ข้ามหัวตาราง)
-                    for (let i = 1; i < rows.length; i++) {
-                        const row = rows[i];
-                        if (!row || row.length === 0) continue;
-
-                        const colA = String(row[0] || '').trim().toUpperCase(); // ช่องผ่าน (Win)
-                        const colB = String(row[1] || '').trim().toUpperCase(); // ช่องแตก (Loss)
-                        const colD = String(row[3] || '').trim();             // คิว
-                        const colE = String(row[4] || '').trim();             // ชื่อ TikTok
-
-                        // ตรวจสอบว่ามีการลงคิวไว้จริงหรือไม่ (เช็กจากคอลัมน์คิว D หรือ ชื่อ TikTok E)
-                        const hasQueue = colD !== '' || colE !== '';
-
-                        if (hasQueue) {
-                            total++;
-
-                            if (colA === 'TRUE' || colA === '1') {
-                                win++;
-                            }
-                            if (colB === 'TRUE' || colB === '1') {
-                                loss++;
-                            }
+                        // ตรวจสอบสถานะ ผ่าน (Win)
+                        if (colA === 'TRUE' || colA === '1' || colA === 'YES') {
+                            win++;
+                        }
+                        // ตรวจสอบสถานะ แตก (Loss)
+                        if (colB === 'TRUE' || colB === '1' || colB === 'YES') {
+                            loss++;
                         }
                     }
-
-                    const played = win + loss;
-                    const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
-
-                    document.getElementById('total').innerText = total;
-                    document.getElementById('win').innerText = win;
-                    document.getElementById('loss').innerText = loss;
-                    document.getElementById('winrate').innerText = winrate + '%';
                 }
-            });
-        }
 
-        // ดึงข้อมูลครั้งแรกทันที และอัปเดตซ้ำทุกๆ 2 วินาที
-        fetchStats();
-        setInterval(fetchStats, 2000);
-    </script>
-</body>
-</html>
+                const played = win + loss;
+                const winrate = played > 0 ? Math.round((win / played) * 100) : 0;
+
+                document.getElementById('total').innerText = total;
+                document.getElementById('win').innerText = win;
+                document.getElementById('loss').innerText = loss;
+                document.getElementById('winrate').innerText = winrate + '%';
+            }
+        });
+    }
+
+    fetchStats();
+    setInterval(fetchStats, 2000);
+</script>
